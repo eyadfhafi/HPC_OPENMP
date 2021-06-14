@@ -166,7 +166,8 @@ int saveFile(ImagenData  Img, char* name){
 
 ///////////////////////////////////////////////////////////////////////////////
 // 2D convolution
-// 2D data are usually stored in computer memory as contiguous 1D array.
+// 2D data are usually stored in c
+//uter memory as contiguous 1D array.
 // So, we are using 1D array for 2D data.
 // 2D convolution assumes the kernel is center originated, which means, if
 // kernel size 3 then, k[-1], k[0], k[1]. The middle of index is always 0.
@@ -201,15 +202,14 @@ int convolve2D(int* in, int* out, int dataSizeX, int dataSizeY,
     kPtr = kernel;
 
     // start convolution
-    #pragma omp parallel shared(inPtr,inPtr2,outPtr,kPtr,kCenterX,kCenterY) private(i,j,m,n,rowMax,rowMin,colMin,colMax,sum) num_threads(4)
-    {
-        #pragma omp for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic) shared(inPtr,inPtr2,outPtr,kPtr,kCenterX,kCenterY) private(i,j,m,n,rowMax,rowMin,colMin,colMax,sum) num_threads(4)
+    
+        //#pragma omp for schedule(dynamic) 
         for(i= 0; i < dataSizeY; ++i)                   // number of rows
         {
             // compute the range of convolution, the current row of kernel should be between these
             rowMax = i + kCenterY;
             rowMin = i - dataSizeY + kCenterY;
-
             for(j = 0; j < dataSizeX; ++j)              // number of columns
             {
                 // compute the range of convolution, the current column of kernel should be between these
@@ -253,9 +253,10 @@ int convolve2D(int* in, int* out, int dataSizeX, int dataSizeY,
                 ++outPtr;                               // next output
             }
         }
-    }
-
-    return 0;
+        
+    
+        return 0;
+    
 }
 
 int main(int argc, char **argv)
@@ -409,9 +410,9 @@ int main(int argc, char **argv)
         BufferB=BufferB+chunksize1;
 
 	for ( i; i<nproc; i++){
-	MPI_Send(BufferR, chunksize1, MPI_INT, i,1, MPI_COMM_WORLD);
-	MPI_Send(BufferG, chunksize1, MPI_INT, i,2, MPI_COMM_WORLD);
-	MPI_Send(BufferB, chunksize1, MPI_INT, i,3, MPI_COMM_WORLD);
+	MPI_Send(BufferR, chunksize1, MPI_INT, i, 1, MPI_COMM_WORLD);
+	MPI_Send(BufferG, chunksize1, MPI_INT, i, 2, MPI_COMM_WORLD);
+	MPI_Send(BufferB, chunksize1, MPI_INT, i, 3, MPI_COMM_WORLD);
 
 
         BufferR=BufferR+chunksize1;
@@ -428,7 +429,21 @@ int main(int argc, char **argv)
           printf("kSizeX : %d\n", kern->kernelX);
           printf("kSizeY : %d\n", kern->kernelY);
 
-
+/*#pragma omp parallel sections num_threads(4)
+        {
+    #pragma omp section 
+                {
+                    convolve2D(source->R, output->R, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
+                }
+    #pragma omp section 
+                {
+                    convolve2D(source->G, output->G, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
+                    }
+    #pragma omp section 
+                {
+                    convolve2D(source->B, output->B, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
+                }
+        }*/
 
         convolve2D(source->R, output->R, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
         convolve2D(source->G, output->G, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
@@ -449,9 +464,9 @@ int main(int argc, char **argv)
     	printf("Master Receiving from slaves\n");
 	for (j; j<nproc; j++){
         	printf("receive from %d\n", j);
-        	MPI_Recv(output->R+j*chunksize1,chunksize1, MPI_INT, j,1,  MPI_COMM_WORLD, &status);
-        	MPI_Recv(output->G+j*chunksize1,chunksize1, MPI_INT, j,2, MPI_COMM_WORLD, &status);
-        	MPI_Recv(output->B+j*chunksize1,chunksize1, MPI_INT, j,3, MPI_COMM_WORLD, &status);
+        	MPI_Recv(output->R+j*chunksize1, chunksize1, MPI_INT, j, 1,  MPI_COMM_WORLD, &status);
+        	MPI_Recv(output->G+j*chunksize1, chunksize1, MPI_INT, j,2, MPI_COMM_WORLD, &status);
+        	MPI_Recv(output->B+j*chunksize1, chunksize1, MPI_INT, j, 3, MPI_COMM_WORLD, &status);
 	}
 
 	c++;
@@ -502,22 +517,10 @@ int main(int argc, char **argv)
         //////////////////////////////////////////////////////////////////////////////////////////////////
         gettimeofday(&tim, NULL);
         start = tim.tv_sec+(tim.tv_usec/1000000.0);
-        #pragma omp parallel sections
-            {
-            #pragma omp section
-                {
-	                convolve2D(source->R, output->R, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
-                }
-            #pragma omp section
-                {
-                    convolve2D(source->G, output->G, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
-                }
-	        #pragma omp section
-	        	{
-                    convolve2D(source->B, output->B, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
-                }
-	        }
 
+	    convolve2D(source->R, output->R, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
+        convolve2D(source->G, output->G, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
+        convolve2D(source->B, output->B, source->width, source->height, kern->vkern, kern->kernelX, kern->kernelY);
 
         gettimeofday(&tim, NULL);
         tconv = tconv + (tim.tv_sec+(tim.tv_usec/1000000.0) - start);
